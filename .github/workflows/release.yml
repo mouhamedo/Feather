@@ -1,4 +1,4 @@
-name: Release
+name: Release SY STORE
 
 on:
   push:
@@ -16,12 +16,31 @@ jobs:
           submodules: 'true'
 
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.0.app
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
-      - name: Compile Feather
+      - name: Compile SY STORE
         run: | 
+          # 1. إرجاع إصدار الماك إلى 13 المدعوم
+          find . -name "Package.swift" -exec sed -i '' 's/\.macOS(\.v15)/\.macOS(\.v13)/g' {} + || true
+          find . -name "Package.swift" -exec sed -i '' 's/\.macOS(\.v16)/\.macOS(\.v13)/g' {} + || true
+          find . -name "Package.swift" -exec sed -i '' 's/\.macOS(\.v14)/\.macOS(\.v13)/g' {} + || true
+          
+          # 2. تغيير إصدارات الآيفون والتلفاز فقط إلى 15 بشكل آمن
+          find . -name "Package.swift" -exec sed -i '' 's/\.iOS(\.v1[0-9])/\.iOS(\.v15)/g' {} + || true
+          find . -name "Package.swift" -exec sed -i '' 's/\.tvOS(\.v1[0-9])/\.tvOS(\.v15)/g' {} + || true
+
+          # 3. الإصلاحات التلقائية لأكواد iOS 16 في التطبيق الأساسي
+          find . -name "*.swift" -exec sed -i '' 's/URL\.documentsDirectory/FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!/g' {} + || true
+          find . -name "*.swift" -exec sed -i '' 's/\.scrollDismissesKeyboard(\.interactively)//g' {} + || true
+          find . -name "*.swift" -exec sed -i '' 's/\.contentTransition(\.numericText())//g' {} + || true
+          find . -name "*.swift" -exec sed -i '' 's/Image(systemName: "checkmark")\.bold()/Image(systemName: "checkmark").font(.body.weight(.bold))/g' {} + || true
+          
+          # تحديث رقم البناء بناءً على الـ Commit الحالي
           agvtool new-version -all $(git rev-parse HEAD)
+          
+          # بدء عملية التجميع
           make
           mkdir upload
           mv packages/* upload/
@@ -29,13 +48,14 @@ jobs:
       - name: Extract Version
         id: get_version
         run: |
-          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" _build/Payload/*.app/Info.plist)
+          # إنشاء رقم إصدار يعتمد على التاريخ والـ Commit
+          VERSION=$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Feather v${{ env.VERSION }}
+          name: SY STORE v${{ env.VERSION }}
           tag_name: v${{ env.VERSION }}
           files: |
             upload/*
@@ -43,4 +63,4 @@ jobs:
           fail_on_unmatched_files: true
           draft: true
         env:
-          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
